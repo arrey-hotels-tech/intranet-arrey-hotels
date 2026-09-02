@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSession } from '@/lib/session';
 import { onlyDigits } from '@/lib/rand';
+import { getDefaultWorkspaceId, logDatabaseError } from '@/lib/workspace';
 
 async function requireSession() {
   const session = await getSession();
@@ -176,15 +177,39 @@ export async function listAreasAdmin() {
   if (session.role !== 'admin') return { error: 'Acesso negado.' };
 
   const supabase = supabaseAdmin();
-  const workspaceId = process.env.DEFAULT_WORKSPACE_ID;
+  let workspaceId;
+  try {
+    workspaceId = getDefaultWorkspaceId();
+  } catch (configError) {
+    console.error('[Config] Não foi possível listar áreas:', configError.message);
+    return { error: 'Não foi possível carregar.' };
+  }
+
+  const { data: workspace, error: workspaceError } = await supabase
+    .from('workspaces')
+    .select('id')
+    .eq('id', workspaceId)
+    .maybeSingle();
+
+  if (workspaceError) {
+    logDatabaseError('Falha ao validar o workspace padrão', workspaceError);
+    return { error: 'Não foi possível carregar.' };
+  }
+  if (!workspace) {
+    console.error('[Config] DEFAULT_WORKSPACE_ID não corresponde a um workspace existente.');
+    return { error: 'Não foi possível carregar.' };
+  }
 
   const { data, error: dbError } = await supabase
     .from('areas')
-    .select('*')
+    .select('id, name, active')
     .eq('workspace_id', workspaceId)
     .order('name');
 
-  if (dbError) return { error: 'Não foi possível carregar.' };
+  if (dbError) {
+    logDatabaseError('Falha ao listar áreas', dbError);
+    return { error: 'Não foi possível carregar.' };
+  }
   return { data };
 }
 
@@ -195,14 +220,23 @@ export async function createArea(name) {
   if (!name || !name.trim()) return { error: 'Digite o nome do hotel/área.' };
 
   const supabase = supabaseAdmin();
-  const workspaceId = process.env.DEFAULT_WORKSPACE_ID;
+  let workspaceId;
+  try {
+    workspaceId = getDefaultWorkspaceId();
+  } catch (configError) {
+    console.error('[Config] Não foi possível criar área:', configError.message);
+    return { error: 'Não foi possível criar.' };
+  }
 
   const { error: insError } = await supabase.from('areas').insert({
     workspace_id: workspaceId,
     name: name.trim(),
     active: true,
   });
-  if (insError) return { error: 'Não foi possível criar (nome já existe?).' };
+  if (insError) {
+    logDatabaseError('Falha ao criar área', insError);
+    return { error: 'Não foi possível criar (nome já existe?).' };
+  }
   return { success: true };
 }
 
@@ -212,7 +246,21 @@ export async function toggleArea(areaId, active) {
   if (session.role !== 'admin') return { error: 'Acesso negado.' };
 
   const supabase = supabaseAdmin();
-  const { error: updError } = await supabase.from('areas').update({ active }).eq('id', areaId);
-  if (updError) return { error: 'Não foi possível atualizar.' };
+  let workspaceId;
+  try {
+    workspaceId = getDefaultWorkspaceId();
+  } catch (configError) {
+    console.error('[Config] Não foi possível atualizar área:', configError.message);
+    return { error: 'Não foi possível atualizar.' };
+  }
+  const { error: updError } = await supabase
+    .from('areas')
+    .update({ active })
+    .eq('id', areaId)
+    .eq('workspace_id', workspaceId);
+  if (updError) {
+    logDatabaseError('Falha ao atualizar área', updError);
+    return { error: 'Não foi possível atualizar.' };
+  }
   return { success: true };
 }
