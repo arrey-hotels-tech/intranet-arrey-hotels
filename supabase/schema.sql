@@ -68,6 +68,34 @@ create table demand_status_history (
   changed_at timestamptz default now()
 );
 
+-- Tarefas internas do Kanban. Admin pertence ao Supabase Auth e os demais
+-- atores pertencem a employees, por isso criador/responsável possuem tipo + id.
+create table internal_tasks (
+  id bigint generated always as identity primary key,
+  workspace_id uuid references workspaces(id) not null,
+  creator_type text not null check (creator_type in ('admin', 'employee')),
+  creator_id uuid not null,
+  assignee_type text not null check (assignee_type in ('admin', 'employee')),
+  assignee_id uuid not null,
+  title text not null,
+  description text,
+  priority text not null default 'media' check (priority in ('baixa', 'media', 'alta')),
+  status text not null default 'novo' check (status in ('novo', 'em_andamento', 'aguardando', 'concluido', 'arquivado')),
+  due_date date,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table internal_task_participants (
+  id bigint generated always as identity primary key,
+  task_id bigint references internal_tasks(id) on delete cascade not null,
+  employee_id uuid references employees(id) not null,
+  participation_role text not null check (participation_role in ('executor', 'acompanhante')),
+  invitation_status text not null default 'pendente' check (invitation_status in ('pendente', 'aceito')),
+  created_at timestamptz default now(),
+  unique (task_id, employee_id, participation_role)
+);
+
 -- ============================================================
 -- RLS: só o service_role (usado pelo servidor da aplicação) mexe
 -- nessas tabelas. A anon key não tem acesso direto a nada aqui —
@@ -79,6 +107,8 @@ alter table employees enable row level security;
 alter table access_codes enable row level security;
 alter table demands enable row level security;
 alter table demand_status_history enable row level security;
+alter table internal_tasks enable row level security;
+alter table internal_task_participants enable row level security;
 -- Nenhuma policy criada de propósito: sem policy = bloqueado pra anon/authenticated,
 -- e o service_role sempre ignora RLS (é assim que o backend consegue ler/escrever).
 

@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/session';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { getDefaultWorkspaceId, logDatabaseError } from '@/lib/workspace';
+import { listInternalTasks, listTaskPeople } from '@/app/actions/taskActions';
 import KanbanBoard from './KanbanBoard';
 
 export default async function PainelPage() {
@@ -8,40 +10,52 @@ export default async function PainelPage() {
   if (!session) redirect('/login');
 
   const supabase = supabaseAdmin();
-  const workspaceId = process.env.DEFAULT_WORKSPACE_ID;
-
-  let query = supabase
+  const workspaceId = getDefaultWorkspaceId();
+  let demandQuery = supabase
     .from('demands')
     .select('id, title, requester_info, priority, status, area_id, areas(name)')
     .eq('workspace_id', workspaceId)
     .neq('status', 'arquivado')
     .order('created_at', { ascending: false });
 
-  if (session.role === 'gestor') {
-    query = query.eq('area_id', session.areaId);
-  }
+  if (session.role === 'gestor') demandQuery = demandQuery.eq('area_id', session.areaId);
 
-  const { data: demands, error } = await query;
+  const [{ data: demands, error: demandError }, taskResult, peopleResult] = await Promise.all([
+    demandQuery,
+    listInternalTasks(),
+    listTaskPeople(),
+  ]);
 
-  if (error) {
-    return <p className="error-text">Não foi possível carregar as demandas.</p>;
-  }
-
-  const editable = session.role === 'admin' || session.role === 'gestor';
+  if (demandError) logDatabaseError('Falha ao carregar demandas do Kanban', demandError);
+  const loadError = demandError || taskResult.error || peopleResult.error;
+  const demandEditable = session.role === 'admin' || session.role === 'gestor';
+  const items = [
+    ...((demands || []).map((demand) => ({
+      ...demand,
+      kind: 'demand',
+      boardKey: `demand:${demand.id}`,
+      canEdit: demandEditable,
+      sourceLabel: 'Demanda externa',
+      primaryName: demand.areas?.name || 'Sem unidade',
+      secondaryName: (demand.requester_info || '').split(',')[0],
+    }))),
+    ...((taskResult.data || []).map((task) => ({
+      ...task,
+      kind: 'task',
+      boardKey: `task:${task.id}`,
+      sourceLabel: 'Tarefa interna',
+      primaryName: task.assigneeName,
+      secondaryName: task.due_date ? `Prazo ${new Date(`${task.due_date}T12:00:00`).toLocaleDateString('pt-BR')}` : 'Sem prazo',
+    }))),
+  ];
 
   return (
     <div>
-      {session.role === 'gestor' && (
-        <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 0 }}>
-          Mostrando só a sua unidade.
-        </p>
-      )}
-      {session.role === 'diretoria' && (
-        <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 0 }}>
-          Todas as unidades, modo somente leitura.
-        </p>
-      )}
-      <KanbanBoard initialDemands={demands || []} editable={editable} />
+      {loadError && <p className="error-text">Parte do Kanban não pôde ser carregada. Consulte os logs do servidor.</p>}
+      <p className="panel-hint">
+        Demandas externas e tarefas internas aparecem juntas. Tarefas particulares só são vistas por seus participantes.
+      </p>
+      <KanbanBoard initialItems={items} people={peopleResult.data || []} role={session.role} />
     </div>
   );
 }

@@ -41,6 +41,7 @@ input[type=text],input[type=email],input[type=password],input[type=date],select,
   width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);
   font-family:var(--sans);font-size:.9rem;background:#fff;color:var(--ink);
 }
+select[multiple]{min-height:72px;}
 textarea{min-height:90px;resize:vertical;}
 
 .btn{display:inline-block;background:var(--teal);color:#fff;border:none;padding:11px 22px;border-radius:var(--radius);font-weight:600;font-size:.88rem;text-decoration:none;}
@@ -74,7 +75,18 @@ textarea{min-height:90px;resize:vertical;}
 .kcard[data-prio="baixa"]{border-left-color:var(--green);}
 .kcard .k-title{font-weight:600;font-size:.85rem;margin-bottom:3px;}
 .kcard .k-meta{font-size:.72rem;color:var(--muted);}
+.k-description{font-size:.75rem;margin-top:7px;white-space:pre-wrap;}
+.k-source{font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--teal);font-weight:700;margin-bottom:4px;}
 .kcol.dragover{outline:2px dashed var(--teal);outline-offset:-4px;}
+.kanban-toolbar{display:flex;justify-content:flex-end;margin:10px 0;}
+.task-form{max-width:720px;margin:12px 0 24px;}
+.task-form-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;}
+.task-form-grid .field{margin-bottom:8px;}
+.form-help,.panel-hint,.empty-column{font-size:.75rem;color:var(--muted);}
+.panel-hint{margin:0 0 10px;}
+.empty-column{padding:6px 4px;}
+.invite-button{margin-top:8px;}
+@media(max-width:700px){.task-form-grid{grid-template-columns:1fr;}}
 
 table{width:100%;border-collapse:collapse;margin-top:16px;font-size:.87rem;}
 th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border);}
