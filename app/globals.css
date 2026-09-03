@@ -77,6 +77,8 @@ textarea{min-height:90px;resize:vertical;}
 .kcard .k-meta{font-size:.72rem;color:var(--muted);}
 .k-description{font-size:.75rem;margin-top:7px;white-space:pre-wrap;}
 .k-description a{color:var(--teal);text-decoration:underline;overflow-wrap:anywhere;}
+.attachment-list{display:flex;flex-direction:column;gap:4px;margin-top:8px;}
+.attachment-link{font-size:.72rem;color:var(--teal);text-decoration:underline;overflow-wrap:anywhere;}
 .k-source{font-size:.62rem;text-transform:uppercase;letter-spacing:.05em;color:var(--teal);font-weight:700;margin-bottom:4px;}
 .kcol.dragover{outline:2px dashed var(--teal);outline-offset:-4px;}
 .kanban-toolbar{display:flex;justify-content:flex-end;margin:10px 0;}

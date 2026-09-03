@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Script from 'next/script';
 import { listAreas, createDemand } from '@/app/actions/demandActions';
+import { confirmUploads } from '@/app/actions/mediaActions';
+
+const TURNSTILE_SITE_KEY = process.env.NODE_ENV === 'production'
+  ? process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+  : '1x00000000000000000000AA';
 
 export default function NovaDemandaPage() {
   const [areas, setAreas] = useState([]);
@@ -15,15 +21,32 @@ export default function NovaDemandaPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const form = e.currentTarget;
+    const files = [...(form.querySelector('[data-attachments]')?.files || [])];
     setLoading(true);
     setError('');
-    const formData = new FormData(e.target);
+    const formData = new FormData(form);
+    formData.set('attachments', JSON.stringify(files.map((file) => ({ name: file.name, type: file.type, size: file.size }))));
     const res = await createDemand(formData);
-    setLoading(false);
     if (res.error) {
+      setLoading(false);
+      window.turnstile?.reset();
       setError(res.error);
       return;
     }
+    try {
+      await Promise.all((res.uploads || []).map(async (upload, index) => {
+        const response = await fetch(upload.url, { method: 'PUT', headers: { 'Content-Type': upload.contentType }, body: files[index] });
+        if (!response.ok) throw new Error('Falha no upload');
+      }));
+      const confirmation = await confirmUploads((res.uploads || []).map(({ id, token }) => ({ id, token })));
+      if (confirmation.error) throw new Error(confirmation.error);
+    } catch {
+      setLoading(false);
+      setError(`O chamado #${res.id} foi criado, mas um anexo não foi enviado. Avise a equipe de tecnologia.`);
+      return;
+    }
+    setLoading(false);
     setResult(res);
   }
 
@@ -44,6 +67,7 @@ export default function NovaDemandaPage() {
 
   return (
     <div>
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" />
       <h2>Abrir chamado</h2>
       <p style={{ color: 'var(--muted)', marginBottom: 24 }}>Sem necessidade de login.</p>
       <form className="card" onSubmit={handleSubmit}>
@@ -76,6 +100,12 @@ export default function NovaDemandaPage() {
             <option value="alta">Alta</option>
           </select>
         </div>
+        <div className="field">
+          <label>Fotos, vídeos ou PDF (opcional, até 5 arquivos)</label>
+          <input data-attachments type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,video/mp4,video/quicktime,video/webm" />
+          <p className="form-help">Fotos/PDF até 15 MB; vídeos até 100 MB; total máximo de 200 MB.</p>
+        </div>
+        <div className="cf-turnstile" data-sitekey={TURNSTILE_SITE_KEY} data-theme="light"></div>
         {error && <p className="error-text">{error}</p>}
         <button className="btn" type="submit" disabled={loading}>
           {loading ? 'Enviando…' : 'Enviar demanda'}

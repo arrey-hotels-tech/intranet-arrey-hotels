@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSession } from '@/lib/session';
 import { getDefaultWorkspaceId, logDatabaseError } from '@/lib/workspace';
+import { deleteMediaForEntity, parseAndValidateFiles, prepareMediaUploads } from '@/lib/media';
 
 const ALLOWED_ROLES = ['admin', 'diretoria', 'gestor'];
 const STATUSES = ['novo', 'em_andamento', 'aguardando', 'concluido'];
@@ -176,6 +177,8 @@ export async function createInternalTask(formData) {
   const assigneeValue = (formData.get('assignee') || 'self').toString();
   const executorIds = [...new Set(formData.getAll('executors').map(String))];
   const followerIds = [...new Set(formData.getAll('followers').map(String))];
+  const fileResult = parseAndValidateFiles((formData.get('attachments') || '[]').toString());
+  if (fileResult.error) return { error: fileResult.error };
 
   if (!title) return { error: 'Digite o título da tarefa.' };
   if (!PRIORITIES.includes(priority)) return { error: 'Prioridade inválida.' };
@@ -244,8 +247,19 @@ export async function createInternalTask(formData) {
     }
   }
 
+  const mediaResult = await prepareMediaUploads({
+    workspaceId,
+    entityType: 'task',
+    entityId: task.id,
+    files: fileResult.files,
+    actor,
+  });
+  if (mediaResult.error) {
+    await supabase.from('internal_tasks').delete().eq('id', task.id);
+    return { error: mediaResult.error };
+  }
   revalidatePath('/painel');
-  return { success: true };
+  return { success: true, id: task.id, uploads: mediaResult.uploads };
 }
 
 export async function updateInternalTaskStatus(taskId, status) {
@@ -351,6 +365,7 @@ export async function deleteInternalTask(taskId) {
   const isCreator = task.creator_type === actor.type && task.creator_id === actor.id;
   if (session.role !== 'admin' && !isCreator) return { error: 'Somente o criador pode excluir esta tarefa.' };
 
+  await deleteMediaForEntity(workspaceId, 'task', taskId);
   const { error } = await supabase
     .from('internal_tasks')
     .delete()

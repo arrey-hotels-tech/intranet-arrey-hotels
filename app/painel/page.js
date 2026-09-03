@@ -3,6 +3,7 @@ import { getSession } from '@/lib/session';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getDefaultWorkspaceId, logDatabaseError } from '@/lib/workspace';
 import { listInternalTasks, listTaskPeople } from '@/app/actions/taskActions';
+import { listMediaForEntities } from '@/lib/media';
 import KanbanBoard from './KanbanBoard';
 
 export default async function PainelPage() {
@@ -29,6 +30,10 @@ export default async function PainelPage() {
   if (demandError) logDatabaseError('Falha ao carregar demandas do Kanban', demandError);
   const loadError = demandError || taskResult.error || peopleResult.error;
   const demandEditable = session.role === 'admin' || session.role === 'gestor';
+  const [demandMedia, taskMedia] = await Promise.all([
+    listMediaForEntities(workspaceId, 'demand', (demands || []).map((item) => item.id)),
+    listMediaForEntities(workspaceId, 'task', (taskResult.data || []).map((item) => item.id)),
+  ]);
   const items = [
     ...((demands || []).map((demand) => ({
       ...demand,
@@ -40,6 +45,7 @@ export default async function PainelPage() {
       sourceLabel: 'Demanda externa',
       primaryName: demand.areas?.name || 'Sem unidade',
       secondaryName: (demand.requester_info || '').split(',')[0],
+      attachments: demandMedia.get(demand.id) || [],
     }))),
     ...((taskResult.data || []).map((task) => ({
       ...task,
@@ -48,6 +54,7 @@ export default async function PainelPage() {
       sourceLabel: 'Tarefa interna',
       primaryName: task.assigneeName,
       secondaryName: task.due_date ? `Prazo ${new Date(`${task.due_date}T12:00:00`).toLocaleDateString('pt-BR')}` : 'Sem prazo',
+      attachments: taskMedia.get(task.id) || [],
     }))),
   ];
 

@@ -96,6 +96,25 @@ create table internal_task_participants (
   unique (task_id, employee_id, participation_role)
 );
 
+create table media_assets (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid references workspaces(id) not null,
+  entity_type text not null check (entity_type in ('demand', 'task', 'post')),
+  entity_id bigint not null,
+  bucket text not null,
+  object_key text not null unique,
+  original_name text not null,
+  mime_type text not null,
+  size_bytes bigint not null check (size_bytes > 0),
+  status text not null default 'pending' check (status in ('pending', 'ready', 'deleted')),
+  uploaded_by_type text not null check (uploaded_by_type in ('public', 'admin', 'employee')),
+  uploaded_by_id uuid,
+  confirmation_token_hash text not null,
+  created_at timestamptz default now(),
+  ready_at timestamptz,
+  deleted_at timestamptz
+);
+
 -- ============================================================
 -- RLS: só o service_role (usado pelo servidor da aplicação) mexe
 -- nessas tabelas. A anon key não tem acesso direto a nada aqui —
@@ -109,6 +128,7 @@ alter table demands enable row level security;
 alter table demand_status_history enable row level security;
 alter table internal_tasks enable row level security;
 alter table internal_task_participants enable row level security;
+alter table media_assets enable row level security;
 -- Nenhuma policy criada de propósito: sem policy = bloqueado pra anon/authenticated,
 -- e o service_role sempre ignora RLS (é assim que o backend consegue ler/escrever).
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { archiveDemand, deleteDemand, updateDemandStatus } from '@/app/actions/painelActions';
+import { confirmUploads } from '@/app/actions/mediaActions';
 import {
   acceptTaskInvitation,
   archiveInternalTask,
@@ -52,11 +53,34 @@ export default function KanbanBoard({ initialItems, people, role }) {
   async function handleCreate(event) {
     event.preventDefault();
     const form = event.currentTarget;
+    const files = [...(form.querySelector('[data-task-attachments]')?.files || [])];
     setSaving(true);
     setErrorMsg('');
-    const result = await createInternalTask(new FormData(form));
+    const formData = new FormData(form);
+    formData.set('attachments', JSON.stringify(files.map((file) => ({ name: file.name, type: file.type, size: file.size }))));
+    const result = await createInternalTask(formData);
+    if (result.error) {
+      setSaving(false);
+      return setErrorMsg(result.error);
+    }
+    try {
+      await Promise.all((result.uploads || []).map(async (upload, index) => {
+        const response = await fetch(upload.url, {
+          method: 'PUT',
+          headers: { 'Content-Type': upload.contentType },
+          body: files[index],
+        });
+        if (!response.ok) throw new Error('Falha no upload');
+      }));
+      const confirmation = await confirmUploads((result.uploads || []).map(({ id, token }) => ({ id, token })));
+      if (confirmation.error) throw new Error(confirmation.error);
+    } catch {
+      setSaving(false);
+      setErrorMsg(`A tarefa #T${result.id} foi criada, mas um anexo não foi enviado. Avise a equipe de tecnologia.`);
+      refreshBoard();
+      return;
+    }
     setSaving(false);
-    if (result.error) return setErrorMsg(result.error);
     form.reset();
     setShowForm(false);
     refreshBoard();
@@ -171,6 +195,11 @@ export default function KanbanBoard({ initialItems, people, role }) {
               </select>
             </div>
           )}
+          <div className="field">
+            <label>Fotos, vídeos ou PDF (opcional, até 5 arquivos)</label>
+            <input data-task-attachments type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,application/pdf,video/mp4,video/quicktime,video/webm" />
+            <p className="form-help">Fotos/PDF até 15 MB; vídeos até 100 MB; total máximo de 200 MB.</p>
+          </div>
           <p className="form-help">Use Ctrl (Windows) ou Command (Mac) para selecionar mais de uma pessoa.</p>
           {errorMsg && <p className="error-text">{errorMsg}</p>}
           <button className="btn" type="submit" disabled={saving}>{saving ? 'Criando…' : 'Criar tarefa'}</button>
@@ -205,6 +234,15 @@ export default function KanbanBoard({ initialItems, people, role }) {
                   {item.kind === 'task' && item.description && <div className="k-description"><LinkifiedText text={item.description} /></div>}
                   {item.kind === 'task' && item.participants?.length > 0 && (
                     <div className="k-meta">Participantes: {item.participants.map((participant) => participant.name).join(', ')}</div>
+                  )}
+                  {item.attachments?.length > 0 && (
+                    <div className="attachment-list">
+                      {item.attachments.map((attachment) => (
+                        <a key={attachment.id} className="attachment-link" href={attachment.url} target="_blank" rel="noopener noreferrer">
+                          {attachment.name}
+                        </a>
+                      ))}
+                    </div>
                   )}
                   {(item.pendingInvitationId || item.canEdit || item.canArchive || item.canDelete) && (
                     <select

@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { getSession } from '@/lib/session';
 import { onlyDigits } from '@/lib/rand';
 import { getDefaultWorkspaceId, logDatabaseError } from '@/lib/workspace';
+import { deleteMediaForEntity } from '@/lib/media';
 
 async function requireSession() {
   const session = await getSession();
@@ -85,6 +86,7 @@ export async function deleteDemand(demandId) {
   }
   if (!demand) return { error: 'Demanda não encontrada.' };
 
+  await deleteMediaForEntity(workspaceId, 'demand', demandId);
   const { error: historyError } = await supabase
     .from('demand_status_history')
     .delete()
