@@ -18,6 +18,21 @@ const COLUMNS = [
   ['concluido', 'Concluído'],
 ];
 
+function LinkifiedText({ text }) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/gi);
+  return parts.map((part, index) => {
+    if (!/^https?:\/\//i.test(part)) return <span key={index}>{part}</span>;
+    const trailingPunctuation = part.match(/[.,;:!?)]*$/)?.[0] || '';
+    const url = trailingPunctuation ? part.slice(0, -trailingPunctuation.length) : part;
+    return (
+      <span key={index}>
+        <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+        {trailingPunctuation}
+      </span>
+    );
+  });
+}
+
 export default function KanbanBoard({ initialItems, people, role }) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
@@ -187,7 +202,7 @@ export default function KanbanBoard({ initialItems, people, role }) {
                   <div className="k-source">{item.sourceLabel}</div>
                   <div className="k-title">#{item.kind === 'task' ? 'T' : 'D'}{item.id} {item.title}</div>
                   <div className="k-meta">{item.primaryName} · {item.secondaryName}</div>
-                  {item.kind === 'task' && item.description && <div className="k-description">{item.description}</div>}
+                  {item.kind === 'task' && item.description && <div className="k-description"><LinkifiedText text={item.description} /></div>}
                   {item.kind === 'task' && item.participants?.length > 0 && (
                     <div className="k-meta">Participantes: {item.participants.map((participant) => participant.name).join(', ')}</div>
                   )}
