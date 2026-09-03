@@ -145,6 +145,7 @@ export async function listInternalTasks() {
         || (task.creator_type === actor.type && task.creator_id === actor.id)
         || (task.assignee_type === actor.type && task.assignee_id === actor.id)
         || (ownParticipant?.participation_role === 'executor' && ownParticipant.invitation_status === 'aceito');
+      const isCreator = task.creator_type === actor.type && task.creator_id === actor.id;
       return {
         ...task,
         creatorName: actorName(task.creator_type, task.creator_id),
@@ -153,6 +154,8 @@ export async function listInternalTasks() {
         pendingInvitationId: ownParticipant?.invitation_status === 'pendente' ? ownParticipant.id : null,
         pendingInvitationRole: ownParticipant?.invitation_status === 'pendente' ? ownParticipant.participation_role : null,
         canEdit,
+        canArchive: session.role === 'admin' || isCreator,
+        canDelete: session.role === 'admin' || isCreator,
       };
     }),
   };
@@ -286,6 +289,76 @@ export async function updateInternalTaskStatus(taskId, status) {
   if (error) {
     logDatabaseError('Falha ao atualizar tarefa interna', error);
     return { error: 'Não foi possível atualizar a tarefa.' };
+  }
+  revalidatePath('/painel');
+  return { success: true };
+}
+
+export async function archiveInternalTask(taskId) {
+  const auth = await requireTaskSession();
+  if (auth.error) return { error: auth.error };
+  const { session } = auth;
+  const actor = actorFromSession(session);
+  const workspaceId = getDefaultWorkspaceId();
+  const supabase = supabaseAdmin();
+
+  const { data: task, error: findError } = await supabase
+    .from('internal_tasks')
+    .select('creator_type, creator_id')
+    .eq('id', taskId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  if (findError) {
+    logDatabaseError('Falha ao localizar tarefa para arquivamento', findError);
+    return { error: 'Não foi possível arquivar a tarefa.' };
+  }
+  if (!task) return { error: 'Tarefa não encontrada.' };
+  const isCreator = task.creator_type === actor.type && task.creator_id === actor.id;
+  if (session.role !== 'admin' && !isCreator) return { error: 'Somente o criador pode arquivar esta tarefa.' };
+
+  const { error } = await supabase
+    .from('internal_tasks')
+    .update({ status: 'arquivado', updated_at: new Date().toISOString() })
+    .eq('id', taskId)
+    .eq('workspace_id', workspaceId);
+  if (error) {
+    logDatabaseError('Falha ao arquivar tarefa interna', error);
+    return { error: 'Não foi possível arquivar a tarefa.' };
+  }
+  revalidatePath('/painel');
+  return { success: true };
+}
+
+export async function deleteInternalTask(taskId) {
+  const auth = await requireTaskSession();
+  if (auth.error) return { error: auth.error };
+  const { session } = auth;
+  const actor = actorFromSession(session);
+  const workspaceId = getDefaultWorkspaceId();
+  const supabase = supabaseAdmin();
+
+  const { data: task, error: findError } = await supabase
+    .from('internal_tasks')
+    .select('creator_type, creator_id')
+    .eq('id', taskId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  if (findError) {
+    logDatabaseError('Falha ao localizar tarefa para exclusão', findError);
+    return { error: 'Não foi possível excluir a tarefa.' };
+  }
+  if (!task) return { error: 'Tarefa não encontrada.' };
+  const isCreator = task.creator_type === actor.type && task.creator_id === actor.id;
+  if (session.role !== 'admin' && !isCreator) return { error: 'Somente o criador pode excluir esta tarefa.' };
+
+  const { error } = await supabase
+    .from('internal_tasks')
+    .delete()
+    .eq('id', taskId)
+    .eq('workspace_id', workspaceId);
+  if (error) {
+    logDatabaseError('Falha ao excluir tarefa interna', error);
+    return { error: 'Não foi possível excluir a tarefa.' };
   }
   revalidatePath('/painel');
   return { success: true };

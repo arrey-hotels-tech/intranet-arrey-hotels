@@ -59,6 +59,53 @@ export async function archiveDemand(demandId) {
   return updateDemandStatus(demandId, 'arquivado');
 }
 
+export async function deleteDemand(demandId) {
+  const { session, error } = await requireSession();
+  if (error) return { error };
+  if (session.role !== 'admin') return { error: 'Só o admin pode excluir demandas.' };
+
+  const supabase = supabaseAdmin();
+  let workspaceId;
+  try {
+    workspaceId = getDefaultWorkspaceId();
+  } catch (configError) {
+    console.error('[Config] Não foi possível excluir demanda:', configError.message);
+    return { error: 'Não foi possível excluir.' };
+  }
+
+  const { data: demand, error: findError } = await supabase
+    .from('demands')
+    .select('id')
+    .eq('id', demandId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+  if (findError) {
+    logDatabaseError('Falha ao localizar demanda para exclusão', findError);
+    return { error: 'Não foi possível excluir.' };
+  }
+  if (!demand) return { error: 'Demanda não encontrada.' };
+
+  const { error: historyError } = await supabase
+    .from('demand_status_history')
+    .delete()
+    .eq('demand_id', demandId);
+  if (historyError) {
+    logDatabaseError('Falha ao excluir histórico da demanda', historyError);
+    return { error: 'Não foi possível excluir.' };
+  }
+
+  const { error: deleteError } = await supabase
+    .from('demands')
+    .delete()
+    .eq('id', demandId)
+    .eq('workspace_id', workspaceId);
+  if (deleteError) {
+    logDatabaseError('Falha ao excluir demanda', deleteError);
+    return { error: 'Não foi possível excluir.' };
+  }
+  return { success: true };
+}
+
 // ===== Pessoas (gestor/diretoria/colaborador) =====
 
 export async function listEmployees() {

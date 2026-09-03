@@ -35,6 +35,8 @@ export default async function PainelPage() {
       kind: 'demand',
       boardKey: `demand:${demand.id}`,
       canEdit: demandEditable,
+      canArchive: session.role === 'admin',
+      canDelete: session.role === 'admin',
       sourceLabel: 'Demanda externa',
       primaryName: demand.areas?.name || 'Sem unidade',
       secondaryName: (demand.requester_info || '').split(',')[0],

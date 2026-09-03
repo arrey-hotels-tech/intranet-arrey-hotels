@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { updateDemandStatus } from '@/app/actions/painelActions';
-import { acceptTaskInvitation, createInternalTask, updateInternalTaskStatus } from '@/app/actions/taskActions';
+import { archiveDemand, deleteDemand, updateDemandStatus } from '@/app/actions/painelActions';
+import {
+  acceptTaskInvitation,
+  archiveInternalTask,
+  createInternalTask,
+  deleteInternalTask,
+  updateInternalTaskStatus,
+} from '@/app/actions/taskActions';
 
 const COLUMNS = [
   ['novo', 'Novo'],
@@ -20,6 +26,7 @@ export default function KanbanBoard({ initialItems, people, role }) {
   const [errorMsg, setErrorMsg] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actingKey, setActingKey] = useState(null);
 
   useEffect(() => setItems(initialItems), [initialItems]);
 
@@ -64,6 +71,32 @@ export default function KanbanBoard({ initialItems, people, role }) {
     const result = await acceptTaskInvitation(participantId);
     if (result.error) return setErrorMsg(result.error);
     setErrorMsg('');
+    refreshBoard();
+  }
+
+  async function performCardAction(item, action) {
+    if (action === 'delete' && !window.confirm(`Excluir definitivamente “${item.title}”? Esta ação não pode ser desfeita.`)) return;
+    setActingKey(item.boardKey);
+    setErrorMsg('');
+
+    let result;
+    if (action === 'finish') {
+      result = item.kind === 'task'
+        ? await updateInternalTaskStatus(item.id, 'concluido')
+        : await updateDemandStatus(item.id, 'concluido');
+    } else if (action === 'archive') {
+      result = item.kind === 'task' ? await archiveInternalTask(item.id) : await archiveDemand(item.id);
+    } else {
+      result = item.kind === 'task' ? await deleteInternalTask(item.id) : await deleteDemand(item.id);
+    }
+
+    setActingKey(null);
+    if (result.error) return setErrorMsg(result.error);
+    if (action === 'archive' || action === 'delete') {
+      setItems((current) => current.filter((candidate) => candidate.boardKey !== item.boardKey));
+    } else {
+      setItems((current) => current.map((candidate) => candidate.boardKey === item.boardKey ? { ...candidate, status: 'concluido' } : candidate));
+    }
     refreshBoard();
   }
 
@@ -154,6 +187,19 @@ export default function KanbanBoard({ initialItems, people, role }) {
                     <button className="btn ghost small invite-button" onClick={() => acceptInvitation(item.pendingInvitationId)}>
                       Aceitar {item.pendingInvitationRole === 'executor' ? 'execução' : 'acompanhamento'}
                     </button>
+                  )}
+                  {(item.canEdit || item.canArchive || item.canDelete) && (
+                    <div className="k-actions">
+                      {item.canEdit && item.status !== 'concluido' && (
+                        <button className="btn ghost small" disabled={actingKey === item.boardKey} onClick={() => performCardAction(item, 'finish')}>Finalizar</button>
+                      )}
+                      {item.canArchive && (
+                        <button className="btn ghost small" disabled={actingKey === item.boardKey} onClick={() => performCardAction(item, 'archive')}>Arquivar</button>
+                      )}
+                      {item.canDelete && (
+                        <button className="btn danger small" disabled={actingKey === item.boardKey} onClick={() => performCardAction(item, 'delete')}>Excluir</button>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
