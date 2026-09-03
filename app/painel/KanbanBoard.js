@@ -74,6 +74,14 @@ export default function KanbanBoard({ initialItems, people, role }) {
     refreshBoard();
   }
 
+  async function handleActionSelect(item, event) {
+    const action = event.currentTarget.value;
+    event.currentTarget.value = '';
+    if (!action) return;
+    if (action === 'accept') return acceptInvitation(item.pendingInvitationId);
+    return performCardAction(item, action);
+  }
+
   async function performCardAction(item, action) {
     if (action === 'delete' && !window.confirm(`Excluir definitivamente “${item.title}”? Esta ação não pode ser desfeita.`)) return;
     setActingKey(item.boardKey);
@@ -183,23 +191,23 @@ export default function KanbanBoard({ initialItems, people, role }) {
                   {item.kind === 'task' && item.participants?.length > 0 && (
                     <div className="k-meta">Participantes: {item.participants.map((participant) => participant.name).join(', ')}</div>
                   )}
-                  {item.pendingInvitationId && (
-                    <button className="btn ghost small invite-button" onClick={() => acceptInvitation(item.pendingInvitationId)}>
-                      Aceitar {item.pendingInvitationRole === 'executor' ? 'execução' : 'acompanhamento'}
-                    </button>
-                  )}
-                  {(item.canEdit || item.canArchive || item.canDelete) && (
-                    <div className="k-actions">
-                      {item.canEdit && item.status !== 'concluido' && (
-                        <button className="btn ghost small" disabled={actingKey === item.boardKey} onClick={() => performCardAction(item, 'finish')}>Finalizar</button>
+                  {(item.pendingInvitationId || item.canEdit || item.canArchive || item.canDelete) && (
+                    <select
+                      className="k-action-box"
+                      defaultValue=""
+                      disabled={actingKey === item.boardKey}
+                      aria-label={`Ações para ${item.title}`}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onChange={(event) => handleActionSelect(item, event)}
+                    >
+                      <option value="" disabled>{actingKey === item.boardKey ? 'Processando…' : 'Ações…'}</option>
+                      {item.pendingInvitationId && (
+                        <option value="accept">Aceitar {item.pendingInvitationRole === 'executor' ? 'execução' : 'acompanhamento'}</option>
                       )}
-                      {item.canArchive && (
-                        <button className="btn ghost small" disabled={actingKey === item.boardKey} onClick={() => performCardAction(item, 'archive')}>Arquivar</button>
-                      )}
-                      {item.canDelete && (
-                        <button className="btn danger small" disabled={actingKey === item.boardKey} onClick={() => performCardAction(item, 'delete')}>Excluir</button>
-                      )}
-                    </div>
+                      {item.canEdit && item.status !== 'concluido' && <option value="finish">Finalizar</option>}
+                      {item.canArchive && <option value="archive">Arquivar</option>}
+                      {item.canDelete && <option value="delete">Excluir definitivamente</option>}
+                    </select>
                   )}
                 </div>
               ))}

@@ -48,7 +48,6 @@ textarea{min-height:90px;resize:vertical;}
 .btn:disabled{opacity:.6;cursor:not-allowed;}
 .btn.secondary{background:transparent;color:var(--teal);border:1px solid var(--teal);}
 .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
-.btn.danger{background:transparent;color:var(--coral);border:1px solid #e7b9ad;}
 .btn.small{padding:6px 12px;font-size:.75rem;}
 
 .error-text{color:var(--coral);font-size:.82rem;margin:8px 0;}
@@ -86,8 +85,7 @@ textarea{min-height:90px;resize:vertical;}
 .form-help,.panel-hint,.empty-column{font-size:.75rem;color:var(--muted);}
 .panel-hint{margin:0 0 10px;}
 .empty-column{padding:6px 4px;}
-.invite-button{margin-top:8px;}
-.k-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:1px solid var(--border);}
+.k-action-box{margin-top:9px;padding:7px 9px;font-size:.74rem;border-color:var(--border);background:#fff;}
 @media(max-width:700px){.task-form-grid{grid-template-columns:1fr;}}
 
 table{width:100%;border-collapse:collapse;margin-top:16px;font-size:.87rem;}
